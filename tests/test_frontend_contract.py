@@ -51,6 +51,23 @@ def test_empty_outcome_and_profit_labels_are_consistent():
     assert 'Belum tersedia' not in WEB
 
 
+def test_frontend_uses_user_scoped_indexeddb_stale_while_revalidate_cache():
+    assert "CACHE_DB='idxsy-signal-cache'" in WEB
+    assert "createObjectStore(CACHE_STORE,{keyPath:'userId'})" in WEB
+    assert 'readCachedSnapshot(userId)' in WEB
+    assert 'void refreshSnapshot(true)' in WEB
+    assert 'deleteCachedSnapshot(userId)' in WEB
+    assert 'outcomes:[...outcomes]' in WEB
+    assert 'sources:[...sources]' in WEB
+
+
+def test_hydration_batches_have_bounded_parallelism():
+    assert 'BATCH_CONCURRENCY=4' in WEB
+    assert 'Math.min(BATCH_CONCURRENCY,batches.length)' in WEB
+    assert 'await Promise.all(' in WEB
+    assert 'return results.flat()' in WEB
+
+
 def test_detail_is_lazy_loaded_and_includes_events_outcome_provenance():
     assert 'async function openDetail(id)' in WEB
     assert "from('signal_events')" in WEB

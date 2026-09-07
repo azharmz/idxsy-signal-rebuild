@@ -79,6 +79,7 @@ const SUPABASE_URL='https://wshtfqqusiifdkqqoejs.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const state={user:null,page:1,pageSize:25,total:0,sort:'signal_timestamp',ascending:false,search:'',type:'',items:[],snapshot:null,outcomes:new Map(),sources:new Map(),loading:false,seq:0};
+const CACHE_DB='idxsy-signal-cache',CACHE_STORE='snapshots',CACHE_VERSION=1,CACHE_MAX_AGE=86400000,BATCH_CONCURRENCY=4;
 const sortableFields=new Set(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score','outcome_status','profit_pct','source']);
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -93,7 +94,7 @@ function showAuth(){state.seq++;state.snapshot=null;state.items=[];state.outcome
 function showApp(){$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('userTag').textContent=state.user?.email||'';}
 
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('authMsg').textContent='';const b=e.submitter;b.disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;state.user=data.user;showApp();await loadPage();}catch(err){$('authMsg').textContent=err.message||'Login gagal';}finally{b.disabled=false;}});
-$('logoutBtn').onclick=async()=>{await sb.auth.signOut();state.user=null;showAuth();};
+$('logoutBtn').onclick=async()=>{const userId=state.user?.id;await sb.auth.signOut();if(userId)await deleteCachedSnapshot(userId);state.user=null;showAuth();};
 $('reloadBtn').onclick=()=>loadPage(true);
 $('resetBtn').onclick=()=>{state.search='';state.type='';state.page=1;$('search').value='';$('typeFilter').value='';loadPage();};
 $('prevBtn').onclick=()=>{if(state.page>1){state.page--;loadPage();}};
@@ -115,27 +116,55 @@ async function readAll(makeQuery){
   }
 }
 async function readBatches(ids,makeQuery){
-  const rows=[];
-  for(let i=0;i<ids.length;i+=100){
-    rows.push(...await readAll(()=>makeQuery(ids.slice(i,i+100))));
-  }
-  return rows;
+  const batches=[];for(let i=0;i<ids.length;i+=100)batches.push(ids.slice(i,i+100));
+  const results=new Array(batches.length);let next=0;
+  const worker=async()=>{while(next<batches.length){const index=next++;results[index]=await readAll(()=>makeQuery(batches[index]));}};
+  await Promise.all(Array.from({length:Math.min(BATCH_CONCURRENCY,batches.length)},worker));
+  return results.flat();
+}
+function openCache(){
+  if(typeof indexedDB==='undefined')return Promise.resolve(null);
+  return new Promise((resolve,reject)=>{const request=indexedDB.open(CACHE_DB,CACHE_VERSION);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(CACHE_STORE))request.result.createObjectStore(CACHE_STORE,{keyPath:'userId'});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+}
+async function withCache(mode,action){
+  const db=await openCache();if(!db)return null;
+  try{return await new Promise((resolve,reject)=>{const tx=db.transaction(CACHE_STORE,mode),store=tx.objectStore(CACHE_STORE);let request;try{request=action(store);}catch(error){reject(error);return;}tx.oncomplete=()=>resolve(request?.result??null);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}
+}
+async function readCachedSnapshot(userId){
+  try{const row=await withCache('readonly',store=>store.get(userId));if(!row||row.version!==CACHE_VERSION||Date.now()-row.savedAt>CACHE_MAX_AGE)return null;return row;}catch(error){console.warn('Cache read failed',error);return null;}
+}
+async function writeCachedSnapshot(userId,items,outcomes,sources){
+  const row={userId,version:CACHE_VERSION,savedAt:Date.now(),items,outcomes:[...outcomes],sources:[...sources]};
+  try{await withCache('readwrite',store=>store.put(row));}catch(error){console.warn('Cache write failed',error);}
+  return row;
+}
+async function deleteCachedSnapshot(userId){try{await withCache('readwrite',store=>store['delete'](userId));}catch(error){console.warn('Cache delete failed',error);}}
+function publishSnapshot(items,outcomes,sources,savedAt,label){
+  state.snapshot=items;state.outcomes=outcomes instanceof Map?outcomes:new Map(outcomes);state.sources=sources instanceof Map?sources:new Map(sources);applyView();
+  $('refreshValue').textContent=new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Makassar',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(savedAt));
+  if(label)$('filterMeta').textContent=label;
 }
 async function loadPage(refresh=false){
   if(!state.user)return;
   if(state.loading)return; // Current controls are applied when hydration finishes.
   if(state.snapshot&&!refresh){applyView();return;}
-  state.loading=true;const seq=++state.seq;$('reloadBtn').disabled=true;
-  $('rows').innerHTML='';$('tableState').className='state';
-  $('tableState').textContent='Memuat snapshot canonical dan outcome/sumber?';$('tableState').style.display='block';
+  const userId=state.user.id;
+  if(!refresh&&!state.snapshot&&typeof indexedDB!=='undefined'){const cached=await readCachedSnapshot(userId);if(cached&&state.user?.id===userId){publishSnapshot(cached.items,cached.outcomes,cached.sources,cached.savedAt,'Cache tampil · memperbarui database…');void refreshSnapshot(true);return;}}
+  return refreshSnapshot(false);
+}
+async function refreshSnapshot(background=false){
+  if(!state.user||state.loading)return;
+  const userId=state.user.id;state.loading=true;const seq=++state.seq;$('reloadBtn').disabled=true;
+  if(!background){$('rows').innerHTML='';$('tableState').className='state';$('tableState').textContent='Memuat snapshot canonical dan outcome/sumber…';$('tableState').style.display='block';}
   try{
     const items=await readAll(()=>sb.from('signals').select('id,ticker,signal_type,signal_timestamp,market_date,entry_price,tp1_price,tp1_pct,sl_default_price,sl_default_pct,confidence_score,confidence_label').order('id',{ascending:true}));
     const hydrated=await hydratePage(items.map(x=>x.id));
-    if(seq!==state.seq)return;
+    if(seq!==state.seq||state.user?.id!==userId)return;
     // Publish atomically; never sort a partially hydrated snapshot.
-    state.snapshot=items;state.outcomes=hydrated.outcomes;state.sources=hydrated.sources;
-    applyView();$('refreshValue').textContent=clock();
-  }catch(err){if(seq!==state.seq)return;state.snapshot=null;state.items=[];$('tableState').className='error';$('tableState').textContent=err.message||String(err);$('tableState').style.display='block';}
+    const cached=await writeCachedSnapshot(userId,items,hydrated.outcomes,hydrated.sources);
+    if(seq!==state.seq||state.user?.id!==userId)return;
+    publishSnapshot(items,hydrated.outcomes,hydrated.sources,cached.savedAt);
+  }catch(err){if(seq!==state.seq)return;if(background&&state.snapshot){applyView();$('filterMeta').textContent='Cache tampil · pembaruan gagal';}else{state.snapshot=null;state.items=[];$('tableState').className='error';$('tableState').textContent=err.message||String(err);$('tableState').style.display='block';}}
   finally{if(seq===state.seq){state.loading=false;$('reloadBtn').disabled=false;}}
 }
 async function hydratePage(ids){
