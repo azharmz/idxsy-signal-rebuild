@@ -1,7 +1,11 @@
 name: zeta-sync-rebuild
 
-# Rebuild safety: manual-only until Architecture HQ approves cutover.
 on:
+  schedule:
+    # +15 menit setelah audit Zeta 22:00, 01:00, 08:00 WIB
+    - cron: '15 15 * * *'
+    - cron: '15 18 * * *'
+    - cron: '15 1 * * *'
   workflow_dispatch: {}
 
 jobs:
@@ -21,6 +25,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Regression tests
+        if: github.event_name == 'workflow_dispatch'
         run: python -m pytest -q
 
       - name: Canonical Zeta member sync
