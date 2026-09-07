@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'scripts/**'
+      - 'web/**'
       - 'tests/**'
       - 'supabase/migrations/**'
       - 'requirements.txt'
@@ -28,3 +30,7 @@ jobs:
           backend/outcome_resolver.py
           backend/zeta_sync.py
           backend/preflight.py
+          backend/canonical_integrity_verify.py
+          scripts/build_cloudflare_pages.py
+      - name: Validate Cloudflare Pages frontend build
+        run: python scripts/build_cloudflare_pages.py
