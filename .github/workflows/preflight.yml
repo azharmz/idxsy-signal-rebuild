@@ -1,0 +1,26 @@
+name: rebuild-preflight
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Read-only connectivity preflight
+        run: python backend/preflight.py
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
+          TG_GROUP_ID: ${{ secrets.TG_GROUP_ID }}
+          TG_TOPIC_ID: ${{ secrets.TG_TOPIC_ID }}
+          ZETA_MEMBER_COOKIE: ${{ secrets.ZETA_MEMBER_COOKIE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_USER_ID: ${{ secrets.SUPABASE_USER_ID }}
