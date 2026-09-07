@@ -1,6 +1,16 @@
 name: rebuild-ci
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - 'web/**'
+      - 'tests/**'
+      - 'supabase/migrations/**'
+      - 'requirements.txt'
+      - '.github/workflows/**'
   pull_request:
     paths:
       - 'backend/**'
