@@ -29,6 +29,7 @@ jobs:
           backend/reconciliation.py
           backend/outcome_resolver.py
           backend/zeta_sync.py
+          backend/zeta_late_bind_reconcile.py
           backend/preflight.py
           backend/canonical_integrity_verify.py
           scripts/build_cloudflare_pages.py
