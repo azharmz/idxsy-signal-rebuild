@@ -31,6 +31,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend behavior regressions
+        run: node --test tests/frontend.test.cjs
       - run: python -m pytest -q
       - run: >-
           python -m py_compile
