@@ -149,15 +149,43 @@ async function hydratePage(ids){
   const sourceRows=await readBatches(sourceIds,batch=>sb.from('source_records').select('id,source_system').in('id',batch).order('id',{ascending:true}));
   const byId=new Map(sourceRows.map(r=>[r.id,r]));
   for(const link of links){const src=byId.get(link.source_record_id);if(!src)throw new Error('Sumber canonical tidak dapat dibaca: '+link.source_record_id);const arr=sources.get(link.signal_id)||[];arr.push(src);sources.set(link.signal_id,arr);}
+  await hydrateLegacyProfits([...outcomes.values()]);
   return {outcomes,sources};
 }
+function needsLegacyProfit(outcome){
+  const evidence=outcome?.supporting_evidence;
+  return outcome?.authority==='ZETA'&&evidence&&
+    !Object.prototype.hasOwnProperty.call(evidence,'profit_pct')&&!!evidence.source_record_id;
+}
+function attachLegacyProfit(outcome,assertions){
+  if(!needsLegacyProfit(outcome))return;
+  const evidence=outcome.supporting_evidence;
+  const sameTime=(a,b)=>a==null&&b==null||(a!=null&&b!=null&&Number.isFinite(Date.parse(a))&&Date.parse(a)===Date.parse(b));
+  const matches=assertions.filter(a=>a.signal_id===outcome.signal_id&&
+    a.source_record_id===evidence.source_record_id&&a.outcome_status===outcome.outcome_status&&
+    (!evidence.assertion_id||a.id===evidence.assertion_id)&&sameTime(a.source_resolved_at,outcome.resolved_at));
+  // Read an existing assertion only when its identity is unambiguous. No latest-event matching.
+  if(matches.length===1)outcome.legacyProfit={raw:matches[0].profit_pct,assertionId:matches[0].id};
+}
+async function hydrateLegacyProfits(outcomes){
+  const legacy=outcomes.filter(needsLegacyProfit);
+  if(!legacy.length)return;
+  const assertions=await readBatches([...new Set(legacy.map(o=>o.signal_id))],batch=>sb.from('signal_outcome_assertions')
+    .select('id,signal_id,source_record_id,outcome_status,profit_pct,source_resolved_at')
+    .in('signal_id',batch).order('id',{ascending:true}));
+  for(const outcome of legacy)attachLegacyProfit(outcome,assertions);
+}
 function canonicalProfit(outcome){
-  // S4 RPC copies assertion.profit_pct into this evidence field. Null stays null.
-  const raw=outcome?.supporting_evidence?.profit_pct;
+  // S4 evidence takes precedence even when explicitly null. Legacy evidence may omit the key.
+  const raw=needsLegacyProfit(outcome)?outcome.legacyProfit?.raw:outcome?.supporting_evidence?.profit_pct;
   if(raw==null)return {value:null,status:'missing'};
   if((typeof raw!=='number'&&typeof raw!=='string')||String(raw).trim()===''||!Number.isFinite(Number(raw)))return {value:null,status:'invalid'};
   return {value:Number(raw),status:'available'};
 }
+function profitOrigin(outcome){
+  return outcome?.legacyProfit?'Assertion Zeta '+outcome.legacyProfit.assertionId+' (evidence outcome lama tidak memuat profit_pct)':'Outcome canonical';
+}
+
 function profitText(outcome){
   const profit=canonicalProfit(outcome);
   if(profit.status==='available')return pct(profit.value);
@@ -192,7 +220,7 @@ function sourceLabel(id){const label=sourceText(id);return badge(label||'?',labe
 function renderRows(){
   document.querySelectorAll('[data-arrow]').forEach(x=>x.textContent=x.dataset.arrow===state.sort?(state.ascending?'↑':'↓'):'');
   const body=$('rows');if(!state.items.length){$('tableState').innerHTML='<strong>Tidak ada signal.</strong>Ubah ticker atau filter signal untuk memperluas hasil.';$('tableState').style.display='block';return;}$('tableState').style.display='none';
-  body.innerHTML=state.items.map(s=>{const o=state.outcomes.get(s.id);const d=dtParts(s.signal_timestamp);return `<tr data-id="${s.id}"><td data-label="Tanggal"><div><div class="date-main">${esc(d.date)}</div><div class="date-sub">${esc(d.time)} WITA</div></div></td><td data-label="Ticker" class="ticker">${esc(s.ticker)}</td><td data-label="Signal">${badge(s.signal_type||'—',s.signal_type==='BUY'?'green':'muted')}</td><td data-label="Entry" class="mono">${num(s.entry_price)}</td><td data-label="TP1" class="mono">${num(s.tp1_price)}</td><td data-label="SL" class="mono">${num(s.sl_default_price)}</td><td data-label="Confidence">${s.confidence_score==null?'—':`${num(s.confidence_score)} ${esc(s.confidence_label||'')}`}</td><td data-label="Outcome">${o?badge(o.outcome_status,outcomeCls(o.outcome_status)):badge('Belum ada outcome')}</td><td data-label="Profit" class="mono">${esc(profitText(o))}</td><td data-label="Sumber">${sourceLabel(s.id)}</td></tr>`}).join('');
+  body.innerHTML=state.items.map(s=>{const o=state.outcomes.get(s.id);const d=dtParts(s.signal_timestamp);return `<tr data-id="${s.id}"><td data-label="Tanggal"><div><div class="date-main">${esc(d.date)}</div><div class="date-sub">${esc(d.time)} WITA</div></div></td><td data-label="Ticker" class="ticker">${esc(s.ticker)}</td><td data-label="Signal">${badge(s.signal_type||'—',s.signal_type==='BUY'?'green':'muted')}</td><td data-label="Entry" class="mono">${num(s.entry_price)}</td><td data-label="TP1" class="mono">${num(s.tp1_price)}</td><td data-label="SL" class="mono">${num(s.sl_default_price)}</td><td data-label="Confidence">${s.confidence_score==null?'—':`${num(s.confidence_score)} ${esc(s.confidence_label||'')}`}</td><td data-label="Outcome">${o?badge(o.outcome_status,outcomeCls(o.outcome_status)):badge('Belum ada outcome')}</td><td data-label="Profit" class="mono" title="${esc(profitOrigin(o))}">${esc(profitText(o))}</td><td data-label="Sumber">${sourceLabel(s.id)}</td></tr>`}).join('');
   body.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.id));
 
 }
@@ -210,7 +238,7 @@ async function openDetail(id){
     const sig=s.data,links=l.data||[],srcIds=links.map(x=>x.source_record_id);let src=[];
     if(srcIds.length){const r=await sb.from('source_records').select('id,source_system,native_source_id,source_record_type,source_timestamp_utc,parser_version,raw_text,raw_payload').in('id',srcIds);if(r.error)throw r.error;src=r.data||[];}
     const srcById=new Map(src.map(x=>[x.id,x]));$('modalTitle').textContent=sig.ticker;$('modalSub').textContent=`${dt(sig.signal_timestamp)} WITA · ${sig.id}`;
-    const outcome=o.data;const fields=[['Signal',sig.signal_type],['Entry',num(sig.entry_price)],['TP1',num(sig.tp1_price)],['SL',num(sig.sl_default_price)],['Confidence',sig.confidence_score==null?'—':`${num(sig.confidence_score)} ${sig.confidence_label||''}`],['Market date',sig.market_date],['Outcome',outcome?.outcome_status||'Belum ada outcome'],['Profit',profitText(outcome)],['Authority',outcome?.authority||'—']];
+    const outcome=o.data;if(outcome)await hydrateLegacyProfits([outcome]);const fields=[['Signal',sig.signal_type],['Entry',num(sig.entry_price)],['TP1',num(sig.tp1_price)],['SL',num(sig.sl_default_price)],['Confidence',sig.confidence_score==null?'—':`${num(sig.confidence_score)} ${sig.confidence_label||''}`],['Market date',sig.market_date],['Outcome',outcome?.outcome_status||'Belum ada outcome'],['Profit',profitText(outcome)],['Sumber profit',profitOrigin(outcome)],['Authority',outcome?.authority||'—']];
     const events=(e.data||[]).map(x=>`<div class="event-card"><b>${esc(x.event_type)}</b><div class="small">${esc(dt(x.event_timestamp))} WITA</div><pre>${esc(JSON.stringify(x.event_data||{},null,2))}</pre></div>`).join('')||'<div class="small">Tidak ada canonical event.</div>';
     const provenance=links.map(link=>{const x=srcById.get(link.source_record_id)||{};return `<details class="source-card"><summary>${esc(x.source_system||'SOURCE')} · ${esc(x.native_source_id||'—')}</summary><div class="small">${esc(link.match_method)} · ${esc(link.match_confidence)} · ${esc(x.parser_version||'—')}</div><pre>${esc(JSON.stringify({link_evidence:link.evidence,raw_text:x.raw_text,raw_payload:x.raw_payload},null,2))}</pre></details>`}).join('')||'<div class="small">Tidak ada provenance.</div>';
     $('modalBody').innerHTML=`<div class="grid">${fields.map(([k,v])=>`<div class="kv"><div class="k">${esc(k)}</div><div class="v">${esc(v??'—')}</div></div>`).join('')}</div><section class="section"><h3>Event history</h3>${events}</section><section class="section"><h3>Provenance</h3>${provenance}</section>`;

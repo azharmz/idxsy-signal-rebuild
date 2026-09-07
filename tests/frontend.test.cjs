@@ -91,3 +91,35 @@ test('logout invalidates in-flight snapshot; refresh replaces the cached data',a
   a.run("state.user={id:'u'};state.snapshot=[{id:'old'}];readAll=async()=>[{id:'new',ticker:'NEW'}]");
   await a.run('loadPage(true)');assert.equal(a.run('state.items[0].id'),'new');
 });
+test('audited legacy outcomes read the unique same-source Zeta assertion profit',()=>{
+  const a=app();
+  for(const [ticker,profit,status] of [['GULA',-5.625,'SL_HIT'],['IRSX',11.5,'TP_HIT'],['KRAS',5,'TP_HIT'],['CDIA',5.0359712230215825,'TP_HIT'],['PPRE',5.607476635514018,'TP_HIT']]){
+    a.run(`globalThis.o={signal_id:'${ticker}',authority:'ZETA',outcome_status:'${status}',resolved_at:'2026-09-03T03:00:00Z',supporting_evidence:{source_record_id:'source'}};globalThis.assertion={id:'assertion',signal_id:'${ticker}',source_record_id:'source',outcome_status:'${status}',source_resolved_at:'2026-09-03T03:00:00+00:00',profit_pct:${profit}};attachLegacyProfit(o,[assertion])`);
+    assert.equal(a.run('canonicalProfit(o).value'),profit);
+    assert.match(a.run('profitOrigin(o)'),/Assertion Zeta assertion/);
+  }
+});
+test('legacy lookup rejects conflicting identities, statuses, timestamps and ambiguity',()=>{
+  const a=app();
+  const base="globalThis.o={signal_id:'s',authority:'ZETA',outcome_status:'TP_HIT',resolved_at:'2026-09-03T03:00:00Z',supporting_evidence:{source_record_id:'source'}};globalThis.assertion={id:'a',signal_id:'s',source_record_id:'source',outcome_status:'TP_HIT',source_resolved_at:'2026-09-03T03:00:00Z',profit_pct:5};";
+  for(const [key,value] of [['signal_id','other'],['source_record_id','other'],['outcome_status','SL_HIT'],['source_resolved_at','2026-09-04T03:00:00Z']]){
+    a.run(base+`assertion.${key}='${value}';attachLegacyProfit(o,[assertion])`);assert.equal(a.run('canonicalProfit(o).value'),null);
+  }
+  a.run(base+'attachLegacyProfit(o,[assertion,{...assertion,id:"b"}])');assert.equal(a.run('canonicalProfit(o).value'),null);
+  a.run(base+'o.supporting_evidence.assertion_id="b";attachLegacyProfit(o,[assertion])');assert.equal(a.run('canonicalProfit(o).value'),null);
+  a.run(base+'o.authority="TELEGRAM";attachLegacyProfit(o,[assertion])');assert.equal(a.run('canonicalProfit(o).value'),null);
+});
+test('explicit null, invalid and zero evidence are never overwritten by assertion fallback',()=>{
+  const a=app();
+  for(const raw of [null,0,'bad']){
+    a.run(`globalThis.o={signal_id:'s',authority:'ZETA',outcome_status:'TP_HIT',supporting_evidence:{source_record_id:'source',profit_pct:${JSON.stringify(raw)}}};attachLegacyProfit(o,[{id:'a',signal_id:'s',source_record_id:'source',outcome_status:'TP_HIT',profit_pct:99}])`);
+    assert.equal(a.run('o.legacyProfit'),undefined);
+    assert.equal(a.run('canonicalProfit(o).value'),raw===0?0:null);
+  }
+});
+test('list and detail both hydrate legacy assertion fields',async()=>{
+  const a=app();
+  a.run(`globalThis.calls=[];sb.from=table=>{calls.push(table);const data=table==='signals'?{id:'s',ticker:'GULA'}:table==='signal_outcomes'?{id:'o',signal_id:'s',authority:'ZETA',outcome_status:'SL_HIT',resolved_at:'2026-09-03T03:00:00Z',supporting_evidence:{source_record_id:'src'}}:table==='signal_outcome_assertions'?[{id:'a',signal_id:'s',source_record_id:'src',outcome_status:'SL_HIT',profit_pct:-5.625,source_resolved_at:'2026-09-03T03:00:00Z'}]:[];return {select(){return this},eq(){return this},in(){return this},is(){return this},order(){return this},single(){return {data}},maybeSingle(){return {data}},range(from){return {data:from?[]:(Array.isArray(data)?data:[data])}},then(resolve){resolve({data})}}}`);
+  await a.run("openDetail('s')");assert.match(a.get('modalBody').innerHTML,/-5.63%/);
+  assert.equal(await a.run("hydratePage(['s']).then(x=>canonicalProfit(x.outcomes.get('s')).value)"),-5.625);
+});

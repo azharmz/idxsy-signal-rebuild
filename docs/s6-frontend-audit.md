@@ -43,3 +43,22 @@ semantics are included in this change.
 - python -m pytest -q includes the updated frontend architecture contracts.
 - python scripts/build_cloudflare_pages.py validates the single-file deployment.
 - rebuild-ci runs JavaScript regressions with Node 22 before Python tests/build.
+
+## Confirmed legacy evidence gap (user-supplied DB audit)
+
+The eight-row audit confirms that GULA, IRSX, KRAS, CDIA and PPRE have active
+outcome evidence containing source_record_id/zeta_id but no profit_pct or
+assertion_id. Each has a same-source, same-status, same-resolved-time assertion
+with profit: -5.625, 11.5, 5, 5.0359712230215825 and 5.607476635514018 respectively.
+RMKO, BUVA and TOBA already contain outcome profit. BUVA is SL_HIT in both the
+active outcome and its assertion; the legacy CSV RUNNING state must not replace it.
+
+The read-model now supports omitted legacy evidence keys by reading the unique
+assertion with the same signal/source/status/resolved time (and assertion_id if
+present). This does not select a new canonical outcome. Explicit null, zero or
+invalid evidence never falls back. Ambiguous candidates remain unavailable.
+The origin is visible in the Profit tooltip and detail. Both list hydration and
+lazy detail use the same rule. No Telegram fallback or return computation is used.
+Only the supplied sample is verified; complete live DB coverage is not established.
+This fixes the demonstrated profit gap; restoration of other legacy features,
+including duration presentation, is not included in this focused patch.
