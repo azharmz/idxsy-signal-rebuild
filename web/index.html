@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IDXSY Signal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#0b0f14;--panel:#111720;--panel2:#161e29;--line:#253041;--text:#e8edf5;--muted:#8895a8;--accent:#d8aa49;--green:#62c58f;--red:#df746f;--blue:#78a6e6;--radius:10px;color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-size:14px}.hidden{display:none!important}button,input,select{font:inherit}.shell{max-width:1420px;margin:auto;padding:22px}.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}.brand{font-weight:800;font-size:20px;letter-spacing:.01em}.brand span{color:var(--accent)}.eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}.spacer{flex:1}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted);font-size:11px}.dot{width:7px;height:7px;border-radius:50%;background:var(--green)}.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:8px 11px;border-radius:8px;cursor:pointer}.btn:hover{border-color:#45556e}.btn.primary{background:var(--accent);border-color:var(--accent);color:#19140b;font-weight:700}.auth{width:min(390px,calc(100% - 32px));margin:11vh auto;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:24px;box-shadow:0 30px 100px #0008}.auth h1{margin:0 0 4px;font-size:22px}.auth p{margin:0 0 20px;color:var(--muted)}.field{margin:12px 0}.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}.field input{width:100%;padding:10px 11px;background:#0c121a;border:1px solid var(--line);border-radius:8px;color:var(--text)}.msg{font-size:12px;color:var(--red);min-height:18px;margin-top:10px}.summary{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}.card .k{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.card .v{font-size:20px;font-weight:750;margin-top:4px}.card .s{font-size:11px;color:var(--muted);margin-top:3px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius) var(--radius) 0 0}.toolbar input,.toolbar select{background:#0c121a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 9px}.toolbar input{min-width:220px}.table-wrap{border:1px solid var(--line);border-top:0;border-radius:0 0 var(--radius) var(--radius);overflow:auto;background:var(--panel)}table{border-collapse:collapse;width:100%;min-width:1080px}th,td{padding:10px 11px;border-bottom:1px solid #202938;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#151c27;color:#9aa7b9;font-size:10px;text-transform:uppercase;letter-spacing:.05em;z-index:1}th.sortable{cursor:pointer}th.sortable:hover{color:var(--text)}tbody tr{cursor:pointer}tbody tr:hover{background:#151d28}.ticker{font-weight:800;letter-spacing:.02em}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}.badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;border:1px solid var(--line);font-size:10px}.badge.green{color:var(--green);border-color:#285841;background:#112a1e}.badge.red{color:var(--red);border-color:#663539;background:#30181a}.badge.amber{color:#e6be69;border-color:#66542e;background:#2d2717}.badge.blue{color:var(--blue);border-color:#344f75;background:#17243a}.badge.muted{color:#b0bac8}.state{text-align:center;padding:26px;color:var(--muted)}.error{margin:10px;padding:10px;border:1px solid #67333b;border-radius:8px;background:#35191f;color:#ffb1b8}.pagination{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:12px 0}.pagination .meta{color:var(--muted);font-size:12px;margin-right:6px}.overlay{position:fixed;inset:0;background:#05070bcc;display:none;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow:auto;z-index:20}.overlay.show{display:flex}.modal{width:min(920px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 30px 100px #000}.modal-head{display:flex;gap:10px;align-items:flex-start}.modal-head h2{margin:0;font-size:21px}.modal-sub{font-size:11px;color:var(--muted);margin-top:3px}.close{margin-left:auto}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:16px}.kv{background:var(--panel2);border:1px solid #202a39;border-radius:8px;padding:9px}.kv .k{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px}.kv .v{font-weight:650;overflow-wrap:anywhere}.section{margin-top:18px}.section h3{margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent)}.source-card,.event-card{background:#0e141d;border:1px solid #222e3e;border-radius:8px;padding:10px;margin:7px 0}.source-card summary{cursor:pointer;font-weight:700}.small{font-size:11px;color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#090d13;border:1px solid #202938;border-radius:7px;padding:10px;color:#b9c4d4;max-height:300px;overflow:auto;font-size:11px}.footer{text-align:center;color:#556276;font-size:10px;padding:16px}.sort-arrow{color:var(--accent)}
+@media(max-width:760px){.shell{padding:10px}.summary{grid-template-columns:1fr}.top{flex-wrap:wrap}.toolbar>*{flex:1}.toolbar input{min-width:0}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hide-mobile{display:none}}
+</style>
+</head>
+<body>
+<section id="auth" class="auth">
+  <div class="eyebrow">Canonical database</div>
+  <h1>IDXSY <span style="color:var(--accent)">Signal</span></h1>
+  <p>Masuk untuk melihat canonical signal state.</p>
+  <form id="loginForm">
+    <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div>
+    <button class="btn primary" style="width:100%" type="submit">Masuk</button>
+    <div id="authMsg" class="msg"></div>
+  </form>
+</section>
+
+<main id="app" class="shell hidden">
+  <header class="top">
+    <div><div class="eyebrow">Canonical read-model</div><div class="brand">IDXSY <span>Signal</span></div></div>
+    <span class="pill"><span class="dot"></span> LIVE CANONICAL</span>
+    <div class="spacer"></div>
+    <span id="userTag" class="pill"></span>
+    <button id="reloadBtn" class="btn">↻ Refresh</button>
+    <button id="logoutBtn" class="btn">Keluar</button>
+  </header>
+
+  <section class="summary">
+    <div class="card"><div class="k">Canonical signals</div><div id="totalValue" class="v mono">—</div><div class="s">Total sesuai filter aktif</div></div>
+    <div class="card"><div class="k">Current page</div><div id="pageValue" class="v mono">—</div><div class="s">Server-side pagination</div></div>
+    <div class="card"><div class="k">Read model</div><div class="v">S6</div><div class="s">No canonical browser writes</div></div>
+  </section>
+
+  <section class="toolbar">
+    <input id="search" placeholder="Cari ticker…" maxlength="16">
+    <select id="typeFilter"><option value="">Semua signal</option><option value="BUY">BUY</option><option value="WATCHLIST">WATCHLIST</option><option value="SELL">SELL</option></select>
+    <select id="pageSize"><option value="25">25 / halaman</option><option value="50">50 / halaman</option><option value="100">100 / halaman</option></select>
+    <span class="spacer"></span>
+    <span class="pill hide-mobile">sort · filter · page = server-side</span>
+  </section>
+
+  <section class="table-wrap">
+    <table>
+      <thead><tr>
+        <th class="sortable" data-sort="signal_timestamp">Tanggal <span data-arrow="signal_timestamp"></span></th>
+        <th class="sortable" data-sort="ticker">Ticker <span data-arrow="ticker"></span></th>
+        <th class="sortable" data-sort="signal_type">Signal <span data-arrow="signal_type"></span></th>
+        <th class="sortable" data-sort="entry_price">Entry <span data-arrow="entry_price"></span></th>
+        <th class="sortable" data-sort="tp1_price">TP1 <span data-arrow="tp1_price"></span></th>
+        <th class="sortable" data-sort="sl_default_price">SL <span data-arrow="sl_default_price"></span></th>
+        <th class="sortable" data-sort="confidence_score">Confidence <span data-arrow="confidence_score"></span></th>
+        <th>Outcome</th><th>Profit</th><th>Sumber</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="tableState" class="state">Memuat…</div>
+  </section>
+  <div class="pagination"><span id="pageMeta" class="meta"></span><button id="prevBtn" class="btn">‹</button><button id="nextBtn" class="btn">›</button></div>
+  <div class="footer">Facts preserved · interpretations canonical · frontend read-oriented</div>
+</main>
+
+<div id="overlay" class="overlay"><div class="modal">
+  <div class="modal-head"><div><h2 id="modalTitle">—</h2><div id="modalSub" class="modal-sub"></div></div><button id="closeBtn" class="btn close">×</button></div>
+  <div id="modalBody"></div>
+</div></div>
+
+<script>
+const SUPABASE_URL='https://wshtfqqusiifdkqqoejs.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const state={user:null,page:1,pageSize:25,total:0,sort:'signal_timestamp',ascending:false,search:'',type:'',items:[],outcomes:new Map(),sources:new Map(),loading:false,seq:0};
+const directSorts=new Set(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score']);
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>v==null?'—':new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(Number(v));
+const pct=v=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+const dt=v=>v?new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Makassar',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'—';
+const badge=(text,cls='muted')=>`<span class="badge ${cls}">${esc(text||'—')}</span>`;
+const outcomeCls=s=>s==='TP_HIT'?'green':s==='SL_HIT'?'red':s==='EXPIRED'?'amber':'muted';
+function showAuth(){ $('auth').classList.remove('hidden');$('app').classList.add('hidden'); }
+function showApp(){ $('auth').classList.add('hidden');$('app').classList.remove('hidden');$('userTag').textContent=state.user?.email||''; }
+
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('authMsg').textContent='';const b=e.submitter;b.disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;state.user=data.user;showApp();await loadPage();}catch(err){$('authMsg').textContent=err.message||'Login gagal';}finally{b.disabled=false;}});
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();state.user=null;showAuth();};
+$('reloadBtn').onclick=()=>loadPage();
+$('prevBtn').onclick=()=>{if(state.page>1){state.page--;loadPage();}};
+$('nextBtn').onclick=()=>{if(state.page*state.pageSize<state.total){state.page++;loadPage();}};
+$('pageSize').onchange=e=>{state.pageSize=Number(e.target.value);state.page=1;loadPage();};
+$('typeFilter').onchange=e=>{state.type=e.target.value;state.page=1;loadPage();};
+let timer=null;$('search').oninput=e=>{clearTimeout(timer);timer=setTimeout(()=>{state.search=e.target.value.trim().toUpperCase();state.page=1;loadPage();},250);};
+document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(!directSorts.has(key))return;if(state.sort===key)state.ascending=!state.ascending;else{state.sort=key;state.ascending=true;}state.page=1;loadPage();});
+$('closeBtn').onclick=closeModal;$('overlay').onclick=e=>{if(e.target===$('overlay'))closeModal();};document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+async function loadPage(){
+  if(!state.user||state.loading)return;state.loading=true;const seq=++state.seq;$('rows').innerHTML='';$('tableState').className='state';$('tableState').textContent='Memuat…';$('tableState').style.display='block';
+  try{
+    const from=(state.page-1)*state.pageSize,to=from+state.pageSize-1;
+    let q=sb.from('signals').select('id,ticker,signal_type,signal_timestamp,market_date,entry_price,tp1_price,tp1_pct,sl_default_price,sl_default_pct,confidence_score,confidence_label',{count:'exact'});
+    if(state.search)q=q.ilike('ticker',`%${state.search}%`);if(state.type)q=q.eq('signal_type',state.type);
+    q=q.order(state.sort,{ascending:state.ascending,nullsFirst:false}).range(from,to);
+    const {data,error,count}=await q;if(error)throw error;if(seq!==state.seq)return;state.items=data||[];state.total=count||0;
+    await hydratePage(state.items.map(x=>x.id));if(seq!==state.seq)return;renderRows();renderPagination();
+  }catch(err){$('tableState').className='error';$('tableState').textContent=err.message||String(err);$('tableState').style.display='block';}
+  finally{state.loading=false;}
+}
+
+async function hydratePage(ids){
+  state.outcomes=new Map();state.sources=new Map();if(!ids.length)return;
+  const [o,l]=await Promise.all([
+    sb.from('signal_outcomes').select('signal_id,outcome_status,resolved_at,authority,supporting_evidence').in('signal_id',ids).is('superseded_at',null),
+    sb.from('signal_source_links').select('signal_id,source_record_id').in('signal_id',ids)
+  ]);if(o.error)throw o.error;if(l.error)throw l.error;
+  for(const row of o.data||[])state.outcomes.set(row.signal_id,row);
+  const sourceIds=[...new Set((l.data||[]).map(x=>x.source_record_id))];let sourceRows=[];
+  if(sourceIds.length){const r=await sb.from('source_records').select('id,source_system,native_source_id,source_record_type').in('id',sourceIds);if(r.error)throw r.error;sourceRows=r.data||[];}
+  const byId=new Map(sourceRows.map(r=>[r.id,r]));for(const link of l.data||[]){const src=byId.get(link.source_record_id);if(!src)continue;const arr=state.sources.get(link.signal_id)||[];arr.push(src);state.sources.set(link.signal_id,arr);}
+}
+
+function sourceLabel(id){const systems=[...new Set((state.sources.get(id)||[]).map(x=>x.source_system))];if(systems.includes('TELEGRAM')&&systems.includes('ZETA'))return badge('TELEGRAM + ZETA','green');if(systems.includes('TELEGRAM'))return badge('TELEGRAM','blue');if(systems.includes('ZETA'))return badge('ZETA','amber');return badge('—');}
+function renderRows(){
+  const body=$('rows');if(!state.items.length){$('tableState').textContent='Tidak ada signal.';$('tableState').style.display='block';return;}$('tableState').style.display='none';
+  body.innerHTML=state.items.map(s=>{const o=state.outcomes.get(s.id);const profit=o?.supporting_evidence?.profit_pct;return `<tr data-id="${s.id}"><td class="mono">${esc(dt(s.signal_timestamp))}</td><td class="ticker">${esc(s.ticker)}</td><td>${badge(s.signal_type||'—',s.signal_type==='BUY'?'green':'muted')}</td><td class="mono">${num(s.entry_price)}</td><td class="mono">${num(s.tp1_price)}</td><td class="mono">${num(s.sl_default_price)}</td><td>${s.confidence_score==null?'—':`${num(s.confidence_score)} ${esc(s.confidence_label||'')}`}</td><td>${o?badge(o.outcome_status,outcomeCls(o.outcome_status)):badge('OPEN')}</td><td class="mono">${profit==null?'—':pct(profit)}</td><td>${sourceLabel(s.id)}</td></tr>`}).join('');
+  body.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.id));
+  document.querySelectorAll('[data-arrow]').forEach(x=>x.textContent=x.dataset.arrow===state.sort?(state.ascending?'↑':'↓'):'');
+}
+function renderPagination(){const pages=Math.max(1,Math.ceil(state.total/state.pageSize));$('pageMeta').textContent=`Halaman ${state.page} / ${pages}`;$('totalValue').textContent=new Intl.NumberFormat('id-ID').format(state.total);$('pageValue').textContent=`${state.page} / ${pages}`;$('prevBtn').disabled=state.page<=1;$('nextBtn').disabled=state.page>=pages;}
+
+async function openDetail(id){
+  $('overlay').classList.add('show');$('modalTitle').textContent='Memuat…';$('modalSub').textContent='';$('modalBody').innerHTML='<div class="state">Memuat canonical detail…</div>';
+  try{
+    const [s,o,e,l]=await Promise.all([
+      sb.from('signals').select('*').eq('id',id).single(),
+      sb.from('signal_outcomes').select('*').eq('signal_id',id).is('superseded_at',null).maybeSingle(),
+      sb.from('signal_events').select('*').eq('signal_id',id).order('event_timestamp',{ascending:true}),
+      sb.from('signal_source_links').select('source_record_id,match_method,match_confidence,evidence,review_status').eq('signal_id',id)
+    ]);if(s.error)throw s.error;if(o.error)throw o.error;if(e.error)throw e.error;if(l.error)throw l.error;
+    const sig=s.data,links=l.data||[],srcIds=links.map(x=>x.source_record_id);let src=[];
+    if(srcIds.length){const r=await sb.from('source_records').select('id,source_system,native_source_id,source_record_type,source_timestamp_utc,parser_version,raw_text,raw_payload').in('id',srcIds);if(r.error)throw r.error;src=r.data||[];}
+    const srcById=new Map(src.map(x=>[x.id,x]));$('modalTitle').textContent=sig.ticker;$('modalSub').textContent=`${dt(sig.signal_timestamp)} · ${sig.id}`;
+    const outcome=o.data;const fields=[['Signal',sig.signal_type],['Entry',num(sig.entry_price)],['TP1',num(sig.tp1_price)],['SL',num(sig.sl_default_price)],['Confidence',sig.confidence_score==null?'—':num(sig.confidence_score)],['Market date',sig.market_date],['Outcome',outcome?.outcome_status||'OPEN'],['Authority',outcome?.authority||'—']];
+    const events=(e.data||[]).map(x=>`<div class="event-card"><b>${esc(x.event_type)}</b><div class="small">${esc(dt(x.event_timestamp))}</div><pre>${esc(JSON.stringify(x.event_data||{},null,2))}</pre></div>`).join('')||'<div class="small">Tidak ada canonical event.</div>';
+    const provenance=links.map(link=>{const x=srcById.get(link.source_record_id)||{};return `<details class="source-card"><summary>${esc(x.source_system||'SOURCE')} · ${esc(x.native_source_id||'—')}</summary><div class="small">${esc(link.match_method)} · ${esc(link.match_confidence)} · ${esc(x.parser_version||'—')}</div><pre>${esc(JSON.stringify({link_evidence:link.evidence,raw_text:x.raw_text,raw_payload:x.raw_payload},null,2))}</pre></details>`}).join('')||'<div class="small">Tidak ada provenance.</div>';
+    $('modalBody').innerHTML=`<div class="grid">${fields.map(([k,v])=>`<div class="kv"><div class="k">${esc(k)}</div><div class="v">${esc(v??'—')}</div></div>`).join('')}</div><section class="section"><h3>Event history</h3>${events}</section><section class="section"><h3>Provenance</h3>${provenance}</section>`;
+  }catch(err){$('modalTitle').textContent='Detail gagal dimuat';$('modalBody').innerHTML=`<div class="error">${esc(err.message||String(err))}</div>`;}
+}
+function closeModal(){$('overlay').classList.remove('show');}
+
+(async()=>{const {data:{session}}=await sb.auth.getSession();if(session?.user){state.user=session.user;showApp();await loadPage();}else showAuth();})();
+</script>
+</body>
+</html>
