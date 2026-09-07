@@ -136,7 +136,7 @@ test('audited legacy outcomes read the unique same-source Zeta assertion profit'
   for(const [ticker,profit,status] of [['GULA',-5.625,'SL_HIT'],['IRSX',11.5,'TP_HIT'],['KRAS',5,'TP_HIT'],['CDIA',5.0359712230215825,'TP_HIT'],['PPRE',5.607476635514018,'TP_HIT']]){
     a.run(`globalThis.o={signal_id:'${ticker}',authority:'ZETA',outcome_status:'${status}',resolved_at:'2026-09-03T03:00:00Z',supporting_evidence:{source_record_id:'source'}};globalThis.assertion={id:'assertion',signal_id:'${ticker}',source_record_id:'source',outcome_status:'${status}',source_resolved_at:'2026-09-03T03:00:00+00:00',profit_pct:${profit}};attachLegacyProfit(o,[assertion])`);
     assert.equal(a.run('canonicalProfit(o).value'),profit);
-    assert.match(a.run('profitOrigin(o)'),/Assertion Zeta assertion/);
+    assert.equal(a.run('profitOrigin(o)'),'ZETA');
   }
 });
 test('legacy lookup rejects conflicting identities, statuses, timestamps and ambiguity',()=>{
