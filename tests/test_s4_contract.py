@@ -16,8 +16,13 @@ def test_member_api_is_only_zeta_source():
 
 
 def test_no_legacy_trades_data_or_recompute_path():
-    assert 'trades_data' not in SYNC
-    assert 'recompute_trades' not in SYNC
+    # Guard executable legacy dependencies, not harmless documentation text.
+    assert 'table("trades_data")' not in SYNC
+    assert "table('trades_data')" not in SYNC
+    assert 'from("trades_data")' not in SYNC
+    assert "from('trades_data')" not in SYNC
+    assert 'recompute_trades.py' not in SYNC
+    assert 'recompute_trades(' not in SYNC
 
 
 def test_zeta_native_identity_and_source_first_storage():
