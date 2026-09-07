@@ -36,7 +36,7 @@
 
   <section class="summary">
     <div class="card"><div class="k">Canonical signals</div><div id="totalValue" class="v mono">—</div><div id="rangeValue" class="s">Total sesuai filter aktif</div></div>
-    <div class="card"><div class="k">Current page</div><div id="pageValue" class="v mono">—</div><div class="s">Server-side pagination</div></div>
+    <div class="card"><div class="k">Current page</div><div id="pageValue" class="v mono">—</div><div class="s">Pagination lokal</div></div>
     <div class="card"><div class="k">Last refresh</div><div id="refreshValue" class="v mono">—</div><div class="s">WITA · read only</div></div>
   </section>
 
@@ -46,7 +46,7 @@
     <select id="pageSize" aria-label="Jumlah per halaman"><option value="25">25 / halaman</option><option value="50">50 / halaman</option><option value="100">100 / halaman</option></select>
     <button id="resetBtn" class="btn ghost" type="button">Reset filter</button>
     <span class="spacer"></span>
-    <div class="toolbar-meta"><span id="filterMeta">Semua canonical signal</span><span class="pill hide-mobile">server-side</span></div>
+    <div class="toolbar-meta"><span id="filterMeta">Semua canonical signal</span><span class="pill hide-mobile">client-side</span></div>
   </section>
 
   <section class="table-wrap">
@@ -59,7 +59,7 @@
         <th class="sortable" data-sort="tp1_price">TP1 <span data-arrow="tp1_price"></span></th>
         <th class="sortable" data-sort="sl_default_price">SL <span data-arrow="sl_default_price"></span></th>
         <th class="sortable" data-sort="confidence_score">Confidence <span data-arrow="confidence_score"></span></th>
-        <th>Outcome</th><th>Profit</th><th>Sumber</th>
+        <th class="sortable" data-sort="outcome_status">Outcome <span data-arrow="outcome_status"></span></th><th class="sortable" data-sort="profit_pct">Profit <span data-arrow="profit_pct"></span></th><th class="sortable" data-sort="source">Sumber <span data-arrow="source"></span></th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -78,8 +78,8 @@
 const SUPABASE_URL='https://wshtfqqusiifdkqqoejs.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-const state={user:null,page:1,pageSize:25,total:0,sort:'signal_timestamp',ascending:false,search:'',type:'',items:[],outcomes:new Map(),sources:new Map(),loading:false,seq:0};
-const directSorts=new Set(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score']);
+const state={user:null,page:1,pageSize:25,total:0,sort:'signal_timestamp',ascending:false,search:'',type:'',items:[],snapshot:null,outcomes:new Map(),sources:new Map(),loading:false,seq:0};
+const sortableFields=new Set(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score','outcome_status','profit_pct','source']);
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>v==null?'—':new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(Number(v));
@@ -89,54 +89,114 @@ const dt=v=>{const p=dtParts(v);return p.time?`${p.date} · ${p.time}`:p.date;};
 const clock=()=>new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Makassar',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());
 const badge=(text,cls='muted')=>`<span class="badge ${cls}">${esc(text||'—')}</span>`;
 const outcomeCls=s=>s==='TP_HIT'?'green':s==='SL_HIT'?'red':s==='EXPIRED'?'amber':'muted';
-function showAuth(){$('auth').classList.remove('hidden');$('app').classList.add('hidden');}
+function showAuth(){state.seq++;state.snapshot=null;state.items=[];state.outcomes=new Map();state.sources=new Map();state.loading=false;$('reloadBtn').disabled=false;$('rows').innerHTML='';closeModal();$('modalBody').innerHTML='';$('auth').classList.remove('hidden');$('app').classList.add('hidden');}
 function showApp(){$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('userTag').textContent=state.user?.email||'';}
 
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('authMsg').textContent='';const b=e.submitter;b.disabled=true;try{const {data,error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;state.user=data.user;showApp();await loadPage();}catch(err){$('authMsg').textContent=err.message||'Login gagal';}finally{b.disabled=false;}});
 $('logoutBtn').onclick=async()=>{await sb.auth.signOut();state.user=null;showAuth();};
-$('reloadBtn').onclick=()=>loadPage();
+$('reloadBtn').onclick=()=>loadPage(true);
 $('resetBtn').onclick=()=>{state.search='';state.type='';state.page=1;$('search').value='';$('typeFilter').value='';loadPage();};
 $('prevBtn').onclick=()=>{if(state.page>1){state.page--;loadPage();}};
 $('nextBtn').onclick=()=>{if(state.page*state.pageSize<state.total){state.page++;loadPage();}};
 $('pageSize').onchange=e=>{state.pageSize=Number(e.target.value);state.page=1;loadPage();};
 $('typeFilter').onchange=e=>{state.type=e.target.value;state.page=1;loadPage();};
 let timer=null;$('search').oninput=e=>{clearTimeout(timer);timer=setTimeout(()=>{state.search=e.target.value.trim().toUpperCase();state.page=1;loadPage();},250);};
-document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(!directSorts.has(key))return;if(state.sort===key)state.ascending=!state.ascending;else{state.sort=key;state.ascending=true;}state.page=1;loadPage();});
+document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(!sortableFields.has(key))return;if(state.sort===key)state.ascending=!state.ascending;else{state.sort=key;state.ascending=true;}state.page=1;loadPage();});
 $('closeBtn').onclick=closeModal;$('overlay').onclick=e=>{if(e.target===$('overlay'))closeModal();};document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-async function loadPage(){
-  if(!state.user||state.loading)return;state.loading=true;const seq=++state.seq;$('reloadBtn').disabled=true;$('rows').innerHTML='';$('tableState').className='state';$('tableState').innerHTML='<strong>Memuat canonical signals…</strong>Query list dan read-model halaman aktif';$('tableState').style.display='block';
+// Read every range: Supabase response caps must not truncate hydration.
+async function readAll(makeQuery){
+  const rows=[];const size=500;
+  for(let from=0;;){
+    const {data,error}=await makeQuery().range(from,from+size-1);
+    if(error)throw error;
+    if(!data?.length)return rows;
+    rows.push(...data);from+=data.length;
+  }
+}
+async function readBatches(ids,makeQuery){
+  const rows=[];
+  for(let i=0;i<ids.length;i+=100){
+    rows.push(...await readAll(()=>makeQuery(ids.slice(i,i+100))));
+  }
+  return rows;
+}
+async function loadPage(refresh=false){
+  if(!state.user)return;
+  if(state.loading)return; // Current controls are applied when hydration finishes.
+  if(state.snapshot&&!refresh){applyView();return;}
+  state.loading=true;const seq=++state.seq;$('reloadBtn').disabled=true;
+  $('rows').innerHTML='';$('tableState').className='state';
+  $('tableState').textContent='Memuat snapshot canonical dan outcome/sumber?';$('tableState').style.display='block';
   try{
-    const from=(state.page-1)*state.pageSize,to=from+state.pageSize-1;
-    let q=sb.from('signals').select('id,ticker,signal_type,signal_timestamp,market_date,entry_price,tp1_price,tp1_pct,sl_default_price,sl_default_pct,confidence_score,confidence_label',{count:'exact'});
-    if(state.search)q=q.ilike('ticker',`%${state.search}%`);if(state.type)q=q.eq('signal_type',state.type);
-    q=q.order(state.sort,{ascending:state.ascending,nullsFirst:false}).range(from,to);
-    const {data,error,count}=await q;if(error)throw error;if(seq!==state.seq)return;state.items=data||[];state.total=count||0;
-    await hydratePage(state.items.map(x=>x.id));if(seq!==state.seq)return;renderRows();renderPagination();$('refreshValue').textContent=clock();
-  }catch(err){$('tableState').className='error';$('tableState').textContent=err.message||String(err);$('tableState').style.display='block';}
-  finally{state.loading=false;$('reloadBtn').disabled=false;}
+    const items=await readAll(()=>sb.from('signals').select('id,ticker,signal_type,signal_timestamp,market_date,entry_price,tp1_price,tp1_pct,sl_default_price,sl_default_pct,confidence_score,confidence_label').order('id',{ascending:true}));
+    const hydrated=await hydratePage(items.map(x=>x.id));
+    if(seq!==state.seq)return;
+    // Publish atomically; never sort a partially hydrated snapshot.
+    state.snapshot=items;state.outcomes=hydrated.outcomes;state.sources=hydrated.sources;
+    applyView();$('refreshValue').textContent=clock();
+  }catch(err){if(seq!==state.seq)return;state.snapshot=null;state.items=[];$('tableState').className='error';$('tableState').textContent=err.message||String(err);$('tableState').style.display='block';}
+  finally{if(seq===state.seq){state.loading=false;$('reloadBtn').disabled=false;}}
 }
-
 async function hydratePage(ids){
-  state.outcomes=new Map();state.sources=new Map();if(!ids.length)return;
-  const [o,l]=await Promise.all([
-    sb.from('signal_outcomes').select('signal_id,outcome_status,resolved_at,authority,supporting_evidence').in('signal_id',ids).is('superseded_at',null),
-    sb.from('signal_source_links').select('signal_id,source_record_id').in('signal_id',ids)
-  ]);if(o.error)throw o.error;if(l.error)throw l.error;
-  for(const row of o.data||[])state.outcomes.set(row.signal_id,row);
-  const sourceIds=[...new Set((l.data||[]).map(x=>x.source_record_id))];let sourceRows=[];
-  if(sourceIds.length){const r=await sb.from('source_records').select('id,source_system,native_source_id,source_record_type').in('id',sourceIds);if(r.error)throw r.error;sourceRows=r.data||[];}
-  const byId=new Map(sourceRows.map(r=>[r.id,r]));for(const link of l.data||[]){const src=byId.get(link.source_record_id);if(!src)continue;const arr=state.sources.get(link.signal_id)||[];arr.push(src);state.sources.set(link.signal_id,arr);}
+  const outcomes=new Map(),sources=new Map();
+  const [outcomeRows,links]=await Promise.all([
+    readBatches(ids,batch=>sb.from('signal_outcomes').select('id,signal_id,outcome_status,resolved_at,authority,supporting_evidence').in('signal_id',batch).is('superseded_at',null).order('id',{ascending:true})),
+    readBatches(ids,batch=>sb.from('signal_source_links').select('signal_id,source_record_id').in('signal_id',batch).order('signal_id',{ascending:true}).order('source_record_id',{ascending:true}))
+  ]);
+  for(const row of outcomeRows){if(outcomes.has(row.signal_id))throw new Error('Lebih dari satu outcome aktif untuk '+row.signal_id);outcomes.set(row.signal_id,row);}
+  const sourceIds=[...new Set(links.map(x=>x.source_record_id))];
+  const sourceRows=await readBatches(sourceIds,batch=>sb.from('source_records').select('id,source_system').in('id',batch).order('id',{ascending:true}));
+  const byId=new Map(sourceRows.map(r=>[r.id,r]));
+  for(const link of links){const src=byId.get(link.source_record_id);if(!src)throw new Error('Sumber canonical tidak dapat dibaca: '+link.source_record_id);const arr=sources.get(link.signal_id)||[];arr.push(src);sources.set(link.signal_id,arr);}
+  return {outcomes,sources};
+}
+function canonicalProfit(outcome){
+  // S4 RPC copies assertion.profit_pct into this evidence field. Null stays null.
+  const raw=outcome?.supporting_evidence?.profit_pct;
+  if(raw==null)return {value:null,status:'missing'};
+  if((typeof raw!=='number'&&typeof raw!=='string')||String(raw).trim()===''||!Number.isFinite(Number(raw)))return {value:null,status:'invalid'};
+  return {value:Number(raw),status:'available'};
+}
+function profitText(outcome){
+  const profit=canonicalProfit(outcome);
+  if(profit.status==='available')return pct(profit.value);
+  if(profit.status==='invalid')return 'Profit canonical tidak valid';
+  return outcome?'Belum tersedia':'Belum ada outcome';
+}
+function sourceText(id){return [...new Set((state.sources.get(id)||[]).map(x=>x.source_system).filter(Boolean))].sort().join(' + ');}
+function sortValue(signal,key){
+  if(key==='outcome_status')return state.outcomes.get(signal.id)?.outcome_status??null;
+  if(key==='profit_pct')return canonicalProfit(state.outcomes.get(signal.id)).value;
+  if(key==='source')return sourceText(signal.id)||null;
+  const v=signal[key];
+  return ['entry_price','tp1_price','sl_default_price','confidence_score'].includes(key)?(v==null?null:Number(v)):v;
+}
+function compareSignals(a,b){
+  const av=sortValue(a,state.sort),bv=sortValue(b,state.sort);
+  const missing=v=>v==null||v===''||(typeof v==='number'&&!Number.isFinite(v));
+  if(missing(av)!==missing(bv))return missing(av)?1:-1; // Missing always last, either direction.
+  let result=0;
+  if(!missing(av))result=typeof av==='number'?av-bv:String(av).localeCompare(String(bv));
+  return (state.ascending?result:-result)||String(a.id).localeCompare(String(b.id));
+}
+function applyView(){
+  const filtered=(state.snapshot||[]).filter(s=>(!state.search||String(s.ticker||'').toUpperCase().includes(state.search))&&(!state.type||s.signal_type===state.type));
+  filtered.sort(compareSignals);state.total=filtered.length;
+  state.page=Math.max(1,Math.min(state.page,Math.max(1,Math.ceil(state.total/state.pageSize))));
+  state.items=filtered.slice((state.page-1)*state.pageSize,state.page*state.pageSize);
+  $('rows').innerHTML='';$('tableState').className='state';renderRows();renderPagination();
 }
 
-function sourceLabel(id){const systems=[...new Set((state.sources.get(id)||[]).map(x=>x.source_system))];if(systems.includes('TELEGRAM')&&systems.includes('ZETA'))return badge('TELEGRAM + ZETA','green');if(systems.includes('TELEGRAM'))return badge('TELEGRAM','blue');if(systems.includes('ZETA'))return badge('ZETA','amber');return badge('—');}
+function sourceLabel(id){const label=sourceText(id);return badge(label||'?',label==='TELEGRAM + ZETA'?'green':label==='TELEGRAM'?'blue':label==='ZETA'?'amber':'muted');}
 function renderRows(){
-  const body=$('rows');if(!state.items.length){$('tableState').innerHTML='<strong>Tidak ada signal.</strong>Ubah ticker atau filter signal untuk memperluas hasil.';$('tableState').style.display='block';return;}$('tableState').style.display='none';
-  body.innerHTML=state.items.map(s=>{const o=state.outcomes.get(s.id);const profit=o?.supporting_evidence?.profit_pct;const d=dtParts(s.signal_timestamp);return `<tr data-id="${s.id}"><td data-label="Tanggal"><div><div class="date-main">${esc(d.date)}</div><div class="date-sub">${esc(d.time)} WITA</div></div></td><td data-label="Ticker" class="ticker">${esc(s.ticker)}</td><td data-label="Signal">${badge(s.signal_type||'—',s.signal_type==='BUY'?'green':'muted')}</td><td data-label="Entry" class="mono">${num(s.entry_price)}</td><td data-label="TP1" class="mono">${num(s.tp1_price)}</td><td data-label="SL" class="mono">${num(s.sl_default_price)}</td><td data-label="Confidence">${s.confidence_score==null?'—':`${num(s.confidence_score)} ${esc(s.confidence_label||'')}`}</td><td data-label="Outcome">${o?badge(o.outcome_status,outcomeCls(o.outcome_status)):badge('OPEN')}</td><td data-label="Profit" class="mono">${profit==null?'—':pct(profit)}</td><td data-label="Sumber">${sourceLabel(s.id)}</td></tr>`}).join('');
-  body.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.id));
   document.querySelectorAll('[data-arrow]').forEach(x=>x.textContent=x.dataset.arrow===state.sort?(state.ascending?'↑':'↓'):'');
+  const body=$('rows');if(!state.items.length){$('tableState').innerHTML='<strong>Tidak ada signal.</strong>Ubah ticker atau filter signal untuk memperluas hasil.';$('tableState').style.display='block';return;}$('tableState').style.display='none';
+  body.innerHTML=state.items.map(s=>{const o=state.outcomes.get(s.id);const d=dtParts(s.signal_timestamp);return `<tr data-id="${s.id}"><td data-label="Tanggal"><div><div class="date-main">${esc(d.date)}</div><div class="date-sub">${esc(d.time)} WITA</div></div></td><td data-label="Ticker" class="ticker">${esc(s.ticker)}</td><td data-label="Signal">${badge(s.signal_type||'—',s.signal_type==='BUY'?'green':'muted')}</td><td data-label="Entry" class="mono">${num(s.entry_price)}</td><td data-label="TP1" class="mono">${num(s.tp1_price)}</td><td data-label="SL" class="mono">${num(s.sl_default_price)}</td><td data-label="Confidence">${s.confidence_score==null?'—':`${num(s.confidence_score)} ${esc(s.confidence_label||'')}`}</td><td data-label="Outcome">${o?badge(o.outcome_status,outcomeCls(o.outcome_status)):badge('Belum ada outcome')}</td><td data-label="Profit" class="mono">${esc(profitText(o))}</td><td data-label="Sumber">${sourceLabel(s.id)}</td></tr>`}).join('');
+  body.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.id));
+
 }
-function renderPagination(){const pages=Math.max(1,Math.ceil(state.total/state.pageSize));const from=state.total?(state.page-1)*state.pageSize+1:0;const to=Math.min(state.page*state.pageSize,state.total);$('pageMeta').textContent=`${new Intl.NumberFormat('id-ID').format(from)}–${new Intl.NumberFormat('id-ID').format(to)} dari ${new Intl.NumberFormat('id-ID').format(state.total)}`;$('totalValue').textContent=new Intl.NumberFormat('id-ID').format(state.total);$('rangeValue').textContent=state.search||state.type?'Total sesuai filter aktif':'Seluruh canonical signal';$('pageValue').textContent=`${state.page} / ${pages}`;$('filterMeta').textContent=[state.search?`Ticker: ${state.search}`:'',state.type?`Signal: ${state.type}`:''].filter(Boolean).join(' · ')||'Semua canonical signal';$('prevBtn').disabled=state.page<=1;$('nextBtn').disabled=state.page>=pages;}
+function renderPagination(){const pages=Math.max(1,Math.ceil(state.total/state.pageSize));const from=state.total?(state.page-1)*state.pageSize+1:0;const to=Math.min(state.page*state.pageSize,state.total);$('pageMeta').textContent=`${new Intl.NumberFormat('id-ID').format(from)}–${new Intl.NumberFormat('id-ID').format(to)} dari ${new Intl.NumberFormat('id-ID').format(state.total)}`;$('totalValue').textContent=new Intl.NumberFormat('id-ID').format(state.total);const gaps=(state.snapshot||[]).filter(s=>['TP_HIT','SL_HIT','EXPIRED'].includes(state.outcomes.get(s.id)?.outcome_status)&&canonicalProfit(state.outcomes.get(s.id)).status!=='available').length;$('rangeValue').textContent=`${gaps} outcome final tanpa profit canonical valid (seluruh snapshot)`;$('pageValue').textContent=`${state.page} / ${pages}`;$('filterMeta').textContent=[state.search?`Ticker: ${state.search}`:'',state.type?`Signal: ${state.type}`:''].filter(Boolean).join(' · ')||'Semua canonical signal';$('prevBtn').disabled=state.page<=1;$('nextBtn').disabled=state.page>=pages;}
 
 async function openDetail(id){
   $('overlay').classList.add('show');$('modalTitle').textContent='Memuat…';$('modalSub').textContent='';$('modalBody').innerHTML='<div class="state"><strong>Memuat canonical detail…</strong>Signal, outcome, event, dan provenance</div>';
@@ -150,7 +210,7 @@ async function openDetail(id){
     const sig=s.data,links=l.data||[],srcIds=links.map(x=>x.source_record_id);let src=[];
     if(srcIds.length){const r=await sb.from('source_records').select('id,source_system,native_source_id,source_record_type,source_timestamp_utc,parser_version,raw_text,raw_payload').in('id',srcIds);if(r.error)throw r.error;src=r.data||[];}
     const srcById=new Map(src.map(x=>[x.id,x]));$('modalTitle').textContent=sig.ticker;$('modalSub').textContent=`${dt(sig.signal_timestamp)} WITA · ${sig.id}`;
-    const outcome=o.data;const fields=[['Signal',sig.signal_type],['Entry',num(sig.entry_price)],['TP1',num(sig.tp1_price)],['SL',num(sig.sl_default_price)],['Confidence',sig.confidence_score==null?'—':`${num(sig.confidence_score)} ${sig.confidence_label||''}`],['Market date',sig.market_date],['Outcome',outcome?.outcome_status||'OPEN'],['Authority',outcome?.authority||'—']];
+    const outcome=o.data;const fields=[['Signal',sig.signal_type],['Entry',num(sig.entry_price)],['TP1',num(sig.tp1_price)],['SL',num(sig.sl_default_price)],['Confidence',sig.confidence_score==null?'—':`${num(sig.confidence_score)} ${sig.confidence_label||''}`],['Market date',sig.market_date],['Outcome',outcome?.outcome_status||'Belum ada outcome'],['Profit',profitText(outcome)],['Authority',outcome?.authority||'—']];
     const events=(e.data||[]).map(x=>`<div class="event-card"><b>${esc(x.event_type)}</b><div class="small">${esc(dt(x.event_timestamp))} WITA</div><pre>${esc(JSON.stringify(x.event_data||{},null,2))}</pre></div>`).join('')||'<div class="small">Tidak ada canonical event.</div>';
     const provenance=links.map(link=>{const x=srcById.get(link.source_record_id)||{};return `<details class="source-card"><summary>${esc(x.source_system||'SOURCE')} · ${esc(x.native_source_id||'—')}</summary><div class="small">${esc(link.match_method)} · ${esc(link.match_confidence)} · ${esc(x.parser_version||'—')}</div><pre>${esc(JSON.stringify({link_evidence:link.evidence,raw_text:x.raw_text,raw_payload:x.raw_payload},null,2))}</pre></details>`}).join('')||'<div class="small">Tidak ada provenance.</div>';
     $('modalBody').innerHTML=`<div class="grid">${fields.map(([k,v])=>`<div class="kv"><div class="k">${esc(k)}</div><div class="v">${esc(v??'—')}</div></div>`).join('')}</div><section class="section"><h3>Event history</h3>${events}</section><section class="section"><h3>Provenance</h3>${provenance}</section>`;

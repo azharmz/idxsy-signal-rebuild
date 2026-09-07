@@ -26,22 +26,21 @@ def test_frontend_is_read_only_against_canonical_tables():
     assert "from('source_records').select" in WEB
 
 
-def test_list_pagination_sort_filter_are_server_side():
-    compact = WEB.replace(' ', '')
-    assert '.range(from,to)' in compact
-    assert '.order(state.sort' in WEB
-    assert ".ilike('ticker'" in WEB
-    assert ".eq('signal_type',state.type)" in compact
-    assert "{count:'exact'}" in compact
-    assert '.slice(' not in WEB
+def test_snapshot_is_hydrated_before_local_sort_and_pagination():
+    assert 'async function readAll(makeQuery)' in WEB
+    assert '.range(from,from+size-1)' in WEB
+    assert 'const hydrated=await hydratePage' in WEB
+    assert 'filtered.sort(compareSignals)' in WEB
+    assert 'state.items=filtered.slice(' in WEB
+    assert 'supporting_evidence?.profit_pct' in WEB
+    assert '${esc(profitText(o))}' in WEB
+    assert "['Profit',profitText(outcome)]" in WEB
 
 
-def test_sortable_fields_are_direct_database_fields_only():
-    compact = WEB.replace(' ', '')
-    assert "directSorts=newSet(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score'])" in compact
-    assert '<th>Outcome</th>' in WEB
-    assert 'data-sort="outcome_status"' not in WEB
-    assert 'data-sort="source"' not in WEB
+def test_hydrated_columns_are_sortable():
+    for key in ('outcome_status', 'profit_pct', 'source'):
+        assert f'data-sort="{key}"' in WEB
+        assert f'data-arrow="{key}"' in WEB
 
 
 def test_detail_is_lazy_loaded_and_includes_events_outcome_provenance():
