@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WEB = (ROOT / 'web' / 'idxsy-signal.html').read_text(encoding='utf-8')
+WEB = (ROOT / 'web' / 'index.html').read_text(encoding='utf-8')
 
 
 def test_frontend_has_no_legacy_canonical_dependencies():
@@ -27,16 +27,18 @@ def test_frontend_is_read_only_against_canonical_tables():
 
 
 def test_list_pagination_sort_filter_are_server_side():
-    assert ".range(from,to)" in WEB
-    assert ".order(state.sort" in WEB
+    compact = WEB.replace(' ', '')
+    assert '.range(from,to)' in compact
+    assert '.order(state.sort' in WEB
     assert ".ilike('ticker'" in WEB
-    assert ".eq('signal_type',state.type)" in WEB
-    assert "{count:'exact'}" in WEB
+    assert ".eq('signal_type',state.type)" in compact
+    assert "{count:'exact'}" in compact
     assert '.slice(' not in WEB
 
 
 def test_sortable_fields_are_direct_database_fields_only():
-    assert "directSorts=new Set(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score'])" in WEB
+    compact = WEB.replace(' ', '')
+    assert "directSorts=newSet(['signal_timestamp','ticker','signal_type','entry_price','tp1_price','sl_default_price','confidence_score'])" in compact
     assert '<th>Outcome</th>' in WEB
     assert 'data-sort="outcome_status"' not in WEB
     assert 'data-sort="source"' not in WEB
@@ -48,6 +50,12 @@ def test_detail_is_lazy_loaded_and_includes_events_outcome_provenance():
     assert "from('signal_source_links')" in WEB
     assert 'Event history' in WEB
     assert 'Provenance' in WEB
+
+
+def test_canonical_frontend_config_is_explicit():
+    assert 'https://wshtfqqusiifdkqqoejs.supabase.co' in WEB
+    assert 'sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y' in WEB
+    assert 'gfxhtpqzebxycijdnpjp.supabase.co' not in WEB
 
 
 def test_no_backend_secret_in_frontend():
