@@ -50,3 +50,12 @@ jobs:
           BACKFILL_SINCE_DAYS: ${{ inputs.backfill_days }}
           EDIT_RESCAN_DAYS: '7'
           INGEST_CURSOR_SOURCE: 'telegram_group'
+
+      # A ZETA_ONLY row may already exist when Telegram evidence arrives later.
+      # Re-run the same defensible matcher so canonical identity converges quickly.
+      - name: Reconcile late-bound Zeta-only publications
+        run: python backend/zeta_late_bind_reconcile.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_USER_ID: ${{ secrets.SUPABASE_USER_ID }}
