@@ -27,3 +27,4 @@ jobs:
           backend/reconciliation.py
           backend/outcome_resolver.py
           backend/zeta_sync.py
+          backend/preflight.py
