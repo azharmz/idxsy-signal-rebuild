@@ -1,13 +1,7 @@
 name: post-smoke-verify
 
-# One-shot read-only verification. Push trigger is temporary and will be removed
-# after the first successful run.
+# Rebuild safety: manual-only after successful post-smoke verification.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/post_smoke_verify.py'
-      - '.github/workflows/post-smoke-verify.yml'
   workflow_dispatch: {}
 
 jobs:
