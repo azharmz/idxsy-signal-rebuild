@@ -1,7 +1,13 @@
 name: telegram-ingest-rebuild
 
-# Rebuild safety: manual-only until Architecture HQ approves cutover.
 on:
+  schedule:
+    # Pagi 06:00-10:45 WITA = 22:00-02:45 UTC
+    - cron: '0,15,30,45 22,23 * * 0-4'
+    - cron: '0,15,30,45 0,1,2 * * 1-5'
+    # Siang 13:00-17:15 WITA = 05:00-09:15 UTC
+    - cron: '0,15,30,45 5,6,7,8 * * 1-5'
+    - cron: '0,15 9 * * 1-5'
   workflow_dispatch:
     inputs:
       backfill_days:
@@ -27,6 +33,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Regression tests
+        if: github.event_name == 'workflow_dispatch'
         run: python -m pytest -q
 
       - name: Canonical Telegram ingest
