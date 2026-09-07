@@ -22,11 +22,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - name: Stage single-file frontend
+      - name: Stage single-file frontend against canonical Supabase
         run: |
           mkdir -p dist
-          cp web/idxsy-signal.html dist/index.html
-          cp web/idxsy-signal.html dist/idxsy-signal.html
+          python - <<'PY'
+          from pathlib import Path
+
+          src = Path('web/idxsy-signal.html').read_text(encoding='utf-8')
+          src = src.replace('https://gfxhtpqzebxycijdnpjp.supabase.co', 'https://wshtfqqusiifdkqqoejs.supabase.co')
+          src = src.replace('sb_publishable_BXkSOULyV06I6N6DhIIAdw_TJXQUGOS', 'sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y')
+
+          if 'gfxhtpqzebxycijdnpjp.supabase.co' in src or 'sb_publishable_BXkSOULyV06I6N6DhIIAdw_TJXQUGOS' in src:
+              raise SystemExit('Legacy Supabase frontend config still present after replacement')
+          if 'wshtfqqusiifdkqqoejs.supabase.co' not in src or 'sb_publishable_45BjutlMC-tHSoS-lGXIUQ_AOIuqF1y' not in src:
+              raise SystemExit('Canonical Supabase frontend config missing')
+
+          Path('dist/index.html').write_text(src, encoding='utf-8')
+          Path('dist/idxsy-signal.html').write_text(src, encoding='utf-8')
+          PY
           touch dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
