@@ -49,6 +49,7 @@ def test_empty_outcome_and_profit_labels_are_consistent():
     assert "return '-'" in WEB
     assert 'Belum ada outcome' not in WEB
     assert 'Belum tersedia' not in WEB
+    assert "['Sumber profit'" not in WEB
 
 
 def test_frontend_uses_user_scoped_indexeddb_stale_while_revalidate_cache():
