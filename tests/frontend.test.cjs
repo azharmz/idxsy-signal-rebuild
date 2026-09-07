@@ -61,6 +61,36 @@ test('range reader continues past server caps and rejects errors',async()=>{
   assert.equal(await a.run(`readAll(()=>({range:(from,to)=>({data:Array.from({length:Math.min(137,1205-from)},(_,i)=>from+i)})})).then(rows=>rows.length)`),1205);
   await assert.rejects(a.run("readAll(()=>({range:()=>({error:new Error('denied')})}))"),/denied/);
 });
+test('batch hydration runs with bounded concurrency and preserves batch order',async()=>{
+  const a=app();
+  const result=await a.run(`(async()=>{let active=0,maxActive=0;
+    const rows=await readBatches(Array.from({length:950},(_,i)=>i),batch=>({range:async from=>{
+      active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setTimeout(resolve,2));active--;
+      return {data:from===0?[batch[0]]:[]};
+    }}));return {rows,maxActive};})()`);
+  assert.equal(result.maxActive,4);
+  assert.equal(Array.from(result.rows).join(','),'0,100,200,300,400,500,600,700,800,900');
+});
+test('cached snapshot renders immediately and refresh starts in background for the same user',async()=>{
+  const a=app();
+  a.run(`state.user={id:'user-a'};globalThis.indexedDB={};let refreshed=false,cacheUser='';
+    readCachedSnapshot=async userId=>{cacheUser=userId;return {savedAt:1,items:[{id:'cached',ticker:'CACHE'}],outcomes:[],sources:[]}};
+    refreshSnapshot=async background=>{refreshed=background};`);
+  await a.run('loadPage()');
+  assert.equal(a.run('state.items[0].id'),'cached');
+  assert.equal(a.run('cacheUser'),'user-a');
+  assert.equal(a.run('refreshed'),true);
+  assert.match(a.get('filterMeta').textContent,/Cache tampil/);
+});
+test('cached maps are reconstructed and logout cache deletion is user scoped',async()=>{
+  const a=app();
+  a.run(`publishSnapshot([{id:'s',ticker:'AAA'}],[['s',{outcome_status:'TP_HIT',supporting_evidence:{profit_pct:5}}]],[['s',[{source_system:'ZETA'}]]],1);
+    state.user={id:'user-a'};let deleted='';deleteCachedSnapshot=async id=>{deleted=id};sb.auth={signOut:async()=>{}};`);
+  assert.equal(a.run("state.outcomes.get('s').outcome_status"),'TP_HIT');
+  assert.equal(a.run("state.sources.get('s')[0].source_system"),'ZETA');
+  await a.run("document.getElementById('logoutBtn').onclick()");
+  assert.equal(a.run('deleted'),'user-a');
+});
 test('hydration spans link caps, joins source IDs and excludes superseded outcomes',async()=>{
   const a=app();
   a.run(`const requests=[];sb.from=table=>{let ids=[],active=false;return {select(){return this},in(key,values){ids=values;return this},is(key,value){active=key==='superseded_at'&&value===null;return this},order(){return this},range(from,to){requests.push(table);let data=table==='signal_outcomes'?(active?[{id:'o',signal_id:'s',outcome_status:'TP_HIT',supporting_evidence:{profit_pct:0}}]:[]):table==='signal_source_links'?Array.from({length:603},(_,i)=>({signal_id:'s',source_record_id:String(i)})):ids.map(id=>({id,source_system:Number(id)%2?'ZETA':'TELEGRAM'}));return {data:data.slice(from,Math.min(to+1,from+71))}}}}`);
