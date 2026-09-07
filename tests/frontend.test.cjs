@@ -17,8 +17,8 @@ test('canonical profit preserves zero, negative and numeric strings; no price or
     assert.equal(a.run(`canonicalProfit({supporting_evidence:{profit_pct:${JSON.stringify(raw)}}}).value`),expected);
   }
   assert.equal(a.run("profitText({supporting_evidence:{profit_pct:0}})"),'+0.00%');
-  assert.equal(a.run("profitText({outcome_status:'TP_HIT',profit_pct:99,entry_price:100,tp1_price:110,supporting_evidence:{profit_pct:null}})"),'Belum tersedia');
-  assert.equal(a.run('profitText(null)'),'Belum ada outcome');
+  assert.equal(a.run("profitText({outcome_status:'TP_HIT',profit_pct:99,entry_price:100,tp1_price:110,supporting_evidence:{profit_pct:null}})"),'-');
+  assert.equal(a.run('profitText(null)'),'-');
 });
 test('global numeric sorting before pagination; null last both ways; filter and stable ties',()=>{
   const a=app();
@@ -35,6 +35,16 @@ test('global numeric sorting before pagination; null last both ways; filter and 
   a.run("state.search='';state.type='SELL';applyView()");assert.equal(a.run('state.items[0].id'),'c');
   a.run("state.outcomes.set('b',state.outcomes.get('a'))");
   assert.equal(a.run("compareSignals({id:'a'},{id:'b'})"),-1);
+});
+test('missing outcome is presented and sorted as OPEN while empty profit is a dash',()=>{
+  const a=app();
+  a.run(`state.snapshot=[{id:'a',ticker:'AAA'},{id:'b',ticker:'BBB'}];
+    state.outcomes=new Map([['b',{outcome_status:'TP_HIT',supporting_evidence:{profit_pct:null}}]]);
+    state.sources=new Map();state.sort='outcome_status';state.ascending=true;state.pageSize=25;applyView();`);
+  assert.equal(a.run("sortValue({id:'a'},'outcome_status')"),'OPEN');
+  assert.match(a.get('rows').innerHTML,/data-label="Outcome"><span class="badge muted">OPEN<\/span>/);
+  assert.match(a.get('rows').innerHTML,/data-label="Profit"[^>]*>-<\/td>/);
+  assert.doesNotMatch(a.get('rows').innerHTML,/Belum ada outcome|Belum tersedia/);
 });
 test('outcome and source sorting uses hydrated displayed values and source order is normalized',()=>{
   const a=app();

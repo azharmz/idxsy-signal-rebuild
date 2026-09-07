@@ -43,6 +43,14 @@ def test_hydrated_columns_are_sortable():
         assert f'data-arrow="{key}"' in WEB
 
 
+def test_empty_outcome_and_profit_labels_are_consistent():
+    assert "o?.outcome_status||'OPEN'" in WEB
+    assert "outcome?.outcome_status||'OPEN'" in WEB
+    assert "return '-'" in WEB
+    assert 'Belum ada outcome' not in WEB
+    assert 'Belum tersedia' not in WEB
+
+
 def test_detail_is_lazy_loaded_and_includes_events_outcome_provenance():
     assert 'async function openDetail(id)' in WEB
     assert "from('signal_events')" in WEB
