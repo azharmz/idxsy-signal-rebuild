@@ -1,0 +1,27 @@
+name: post-smoke-verify
+
+# One-shot read-only verification. Push trigger is temporary and will be removed
+# after the first successful run.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/post_smoke_verify.py'
+      - '.github/workflows/post-smoke-verify.yml'
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Read-only canonical post-smoke verification
+        run: python backend/post_smoke_verify.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_USER_ID: ${{ secrets.SUPABASE_USER_ID }}
